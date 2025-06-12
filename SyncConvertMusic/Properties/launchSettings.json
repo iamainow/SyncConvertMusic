@@ -2,7 +2,7 @@
   "profiles": {
     "SyncConvertMusic-args": {
       "commandName": "Project",
-      "commandLineArgs": ""
+      "commandLineArgs": "-quality 0 -source-directory \"\" -dest-directory \"\" -source-ext .flac -ffmpeg \"\""
     },
     "SyncConvertMusic": {
       "commandName": "Project"
