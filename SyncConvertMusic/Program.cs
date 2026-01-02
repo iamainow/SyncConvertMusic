@@ -49,10 +49,14 @@ internal class Program
             Directory.CreateDirectory(directoryToCreate);
         }
 
-        var sourceFilesRelativePathsWithoutExtensions = Directory.EnumerateFiles(parameters.Source, $"*{parameters.SourceExtension}", SearchOption.AllDirectories)
-            .Where(path => filterOutHiddenReadonlySystem(new DirectoryInfo(path)))
-            .Select(path => Path.GetRelativePath(parameters.Source, path)[..^parameters.SourceExtension.Length])
-            .ToHashSet();
+        var sourceFilesRelativePathsWithoutExtensions = Enumerable.Concat(
+            Directory.EnumerateFiles(parameters.Source, $"*{parameters.SourceExtension}", SearchOption.AllDirectories)
+                .Where(path => filterOutHiddenReadonlySystem(new DirectoryInfo(path)))
+                .Select(path => Path.GetRelativePath(parameters.Source, path)[..^parameters.SourceExtension.Length]),
+            Directory.EnumerateFiles(parameters.Source, $"*{destinationExtension}", SearchOption.AllDirectories)
+                .Where(path => filterOutHiddenReadonlySystem(new DirectoryInfo(path)))
+                .Select(path => Path.GetRelativePath(parameters.Source, path)[..^destinationExtension.Length])
+            ).ToHashSet();
 
         var destinationFilesRelativePathsWithoutExtensions = Directory.EnumerateFiles(parameters.Destination, $"*{destinationExtension}", SearchOption.AllDirectories)
             .Where(path => filterOutHiddenReadonlySystem(new DirectoryInfo(path)))
@@ -74,18 +78,34 @@ internal class Program
             Directory.Delete(directoryToDelete);
         }
 
-        var filesToCreate = sourceFilesRelativePathsWithoutExtensions
+        var filesToConvert = sourceFilesRelativePathsWithoutExtensions
             .Where(x => !destinationFilesRelativePathsWithoutExtensions.Contains(x))
             .Select(x => new
             {
                 Source = Path.Combine(parameters.Source, x + parameters.SourceExtension),
                 Destination = Path.Combine(parameters.Destination, x + destinationExtension),
             })
+            .Where(x => File.Exists(x.Source))
             .ToArray();
 
-        Parallel.ForEach(filesToCreate, fileToCreate =>
+        var filesToCopy = sourceFilesRelativePathsWithoutExtensions
+            .Where(x => !destinationFilesRelativePathsWithoutExtensions.Contains(x))
+            .Select(x => new
+            {
+                Source = Path.Combine(parameters.Source, x + destinationExtension),
+                Destination = Path.Combine(parameters.Destination, x + destinationExtension),
+            })
+            .Where(x => File.Exists(x.Source))
+            .ToArray();
+
+        foreach (var fileToCopy in filesToCopy)
         {
-            using Process process = Process.Start(parameters.ConverterExe, argumentsTemplate(fileToCreate.Source, fileToCreate.Destination));
+            File.Copy(fileToCopy.Source, fileToCopy.Destination);
+        }
+
+        Parallel.ForEach(filesToConvert, fileToConvert =>
+        {
+            using Process process = Process.Start(parameters.ConverterExe, argumentsTemplate(fileToConvert.Source, fileToConvert.Destination));
             process.WaitForExit();
         });
     }
